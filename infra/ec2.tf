@@ -1,5 +1,5 @@
 resource "aws_instance" "app_server" {
-  ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 22.04 LTS
+  ami           = "ami-08c40ec9ead489470" # Ubuntu 22.04 LTS
   instance_type = var.instance_type
   vpc_security_group_ids = [aws_security_group.app_sg.id]
   
