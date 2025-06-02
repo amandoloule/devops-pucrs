@@ -1,61 +1,81 @@
+# Nome do workflow que aparecerá na aba Actions do GitHub
 name: Node.js CI Pipeline
+
+# Define que o workflow será acionado a cada push no repositório
 on: push
 
+# Configura permissões globais para o workflow
 permissions:
-  contents: read
-  packages: write
+  contents: read # Permissão para ler o código do repositório
+  packages: write # Permissão para publicar pacotes/packages
 
+# Jobs que serão executados no workflow
 jobs:
+  # Job de testes - roda primeiro
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # Executa em máquina virtual Ubuntu
+    
     steps:
+      # Passo 1: Baixa o código do repositório
       - uses: actions/checkout@v2
 
+      # Passo 2: Configura o Node.js versão 20
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
           node-version: '20'
 
+      # Passo 3: Instala as dependências do projeto
       - name: Install dependencies
         run: npm install
 
+      # Passo 4: Executa o linter (ESLint) para análise de código
       - name: Run ESLint
         run: npx eslint src/
 
+      # Passo 5: Executa os testes com Jest
       - name: Run tests
         run: npm test
 
+  # Job de build - depende do job de teste
   build:
-    needs: test
+    needs: test # Só executa após o job 'test' completar com sucesso
     runs-on: ubuntu-latest
     permissions:
-      packages: write
+      packages: write # Permissão específica para este job
 
     steps:
+      # Passo 1: Baixa o código (versão mais recente do action)
       - uses: actions/checkout@v4
 
+      # Passo 2: Faz login no GitHub Container Registry (GHCR)
       - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io # Registro de containers do GitHub
+          username: ${{ github.actor }} # Nome do usuário que acionou o workflow
+          password: ${{ secrets.GITHUB_TOKEN }} # Token automático do GitHub
     
+      # Passo 3: Constrói e envia a imagem Docker
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
-          push: true
-          tags: |
+          context: . # Usa o diretório atual como contexto de build
+          push: true # Envia a imagem após construir
+          tags: |    # Define as tags para a imagem
             ghcr.io/${{ github.repository_owner }}/devops-pucrs:latest
             ghcr.io/${{ github.repository_owner }}/devops-pucrs:${{ github.sha }}
 
+  # Job de deploy - depende do job de build
   deploy:
-    needs: build
+    needs: build # Só executa após o job 'build' completar
     runs-on: ubuntu-latest
+
     steps:
+      # Passo 1: Baixa o código
       - uses: actions/checkout@v4
       
+      # Passo 2: Configura credenciais da AWS
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -63,14 +83,17 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
       
+      # Passo 3: Instala o Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
       
+      # Passo 4: Inicializa o Terraform com backend no S3
       - name: Terraform Init
         run: |
           cd infra
           terraform init -backend-config="bucket=devops-pucrs-tfstate"
       
+      # Passo 5: Aplica as mudanças na infraestrutura
       - name: Terraform Apply
         run: |
           cd infra
